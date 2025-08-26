@@ -1,6 +1,6 @@
 provider "local" {}
 
 resource "local_file" "example" {
-  content  = "Hello, OPA!"
+  content  = "Bad value!"
   filename = "${path.module}/hello.txt"
 }
