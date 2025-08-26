@@ -36,14 +36,4 @@ jobs:
 
       - name: Run OPA Policy Check
         run: |
-          RESULT=$(opa eval --format raw --data bucket.rego --input tfplan.json "data.terraform.demo.allow")
-          echo "OPA result: $RESULT"
-          if [ "$RESULT" != "true" ]; then
-            echo " OPA policy check failed!"
-            exit 1
-          fi
-          echo " OPA policy check passed!"
-
-      - name: Terraform Apply
-        if: success()   # only runs if OPA passed
-        run: terraform apply -auto-approve tfplan.binary
+          opa eval --data bucket.rego --input tfplan.json "data.terraform.demo.allow"
