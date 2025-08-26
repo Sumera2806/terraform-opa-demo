@@ -26,18 +26,18 @@ terraform {
 # AWS provider – credentials are injected via Terraform Cloud workspace variables
 provider "aws" {
   region     = "us-east-1"
-  access_key = var.aws_access_key_id
-  secret_key = var.aws_secret_access_key
+  access_key = var.aws_access_key
+  secret_key = var.aws_secret_key
 }
 
 # Variables that Terraform Cloud will supply (set in the workspace UI)
-variable "aws_access_key_id" {
+variable "aws_access_key" {
   description = "AWS access key"
   type        = string
   sensitive   = true
 }
 
-variable "aws_secret_access_key" {
+variable "aws_secret_key" {
   description = "AWS secret key"
   type        = string
   sensitive   = true
