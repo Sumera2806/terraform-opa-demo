@@ -1,42 +1,56 @@
-name: OPA Policy Check
+name: Terraform with OPA + Cloud
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
-  opa-check:
+  terraform:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Set up Terraform
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.7
+          terraform_version: 1.6.6
 
+      # Authenticate with Terraform Cloud
+      - name: Terraform Init
+        env:
+          TF_CLOUD_ORGANIZATION: terraform-opa-testing
+          TF_WORKSPACE: terraform-opa-demo
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFE_TOKEN }}
+        run: terraform init
+
+      # Run Terraform Plan locally first
+      - name: Terraform Plan (local pre-check)
+        run: terraform plan -out=tfplan.binary
+
+      # Convert plan to JSON for OPA
+      - name: Convert Plan to JSON
+        run: terraform show -json tfplan.binary > tfplan.json
+
+      # Install OPA
       - name: Install OPA
         run: |
           curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
           chmod +x opa
-          sudo mv opa /usr/local/bin/opa
+          sudo mv opa /usr/local/bin/
 
-      - name: Terraform Init
-        run: terraform init -input=false
-
-      - name: Terraform Plan
-        run: terraform plan -input=false -out=tfplan.binary \
-             -var="aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" \
-             -var="aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-
-      - name: Convert Plan to JSON
-        run: terraform show -json tfplan.binary > tfplan.json
-
+      # Run OPA check
       - name: Run OPA Policy Check
         run: |
-          result=$(opa eval --format raw --data policy/bucket.rego --input tfplan.json "data.terraform.demo.allow")
-          echo "OPA result: $result"
-          if [ "$result" != "true" ]; then
-            echo "OPA denied. Reasons:"
-            opa eval --format pretty --data policy/bucket.rego --input tfplan.json "data.terraform.demo.deny"
-            exit 1
-          fi
+          opa eval --input tfplan.json --data policies --format pretty "data.terraform.s3.deny"
+
+      # If OPA passed, apply in Terraform Cloud
+      - name: Terraform Apply (Cloud Workspace)
+        if: success()
+        env:
+          TF_CLOUD_ORGANIZATION: terraform-opa-testing
+          TF_WORKSPACE: terraform-opa-demo
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFE_TOKEN }}
+        run: terraform apply -auto-approve

@@ -1,82 +1,42 @@
 terraform {
-  required_version = ">= 1.4.0"
-
-  # Terraform Cloud / Enterprise remote backend
-  backend "remote" {
-    hostname     = "app.terraform.io"   # or your Terraform Enterprise hostname
-    organization = "terraform-opa-testing"         # <-- replace with your org name
+  cloud {
+    organization = "terraform-opa-testing" 
 
     workspaces {
-      name = "terraform-opa-demo"              # <-- must match your TFC workspace name
+      name = "terraform-opa-demo" 
     }
   }
+
+  required_version = ">= 1.3.0"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
-    }
   }
 }
 
-# AWS provider – credentials are injected via Terraform Cloud workspace variables
 provider "aws" {
-  region     = "us-east-1"
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
+  region = "us-east-1"
 }
 
-# Variables that Terraform Cloud will supply (set in the workspace UI)
-variable "aws_access_key" {
-  description = "AWS access key"
-  type        = string
-  sensitive   = true
-}
-
-variable "aws_secret_key" {
-  description = "AWS secret key"
-  type        = string
-  sensitive   = true
-}
-
-# Unique suffix so bucket name is globally unique each run
-resource "random_id" "suffix" {
-  byte_length = 4
-}
-
-# The bucket itself
+# Example S3 bucket resource
 resource "aws_s3_bucket" "example" {
-  bucket = "opa-demo-bucket-${random_id.suffix.hex}"
+  bucket = "my-terraform-demo-bucket-12345"
 
   tags = {
-    Name        = "opa-demo-bucket"
-    Owner       = "platform"
-    CostCenter  = "demo"
-    Environment = "dev"
+    Name        = "TerraformDemo"
+    Environment = "Dev"
   }
 }
 
-# Best practice: block all public access on the bucket
+# Optional: prevent public access
 resource "aws_s3_bucket_public_access_block" "example" {
-  bucket                  = aws_s3_bucket.example.id
+  bucket = aws_s3_bucket.example.id
+
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
-
-# Server-side encryption so we PASS the OPA policy
-resource "aws_s3_bucket_server_side_encryption_configuration" "example" {
-  bucket = aws_s3_bucket.example.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-# trigger OPA
